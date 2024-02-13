@@ -1,0 +1,14 @@
+# Compiler files
+cache/
+out/
+lib/
+
+broadcast/
+.idea/
+.DS_Store
+
+# Docs
+docs/
+
+# Dotenv file
+.env
