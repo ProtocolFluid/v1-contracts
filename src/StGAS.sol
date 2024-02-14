@@ -117,6 +117,12 @@ contract StGAS is ERC20, Ownable {
 //        return amountClaimed;
 //    }
 
+    function distributeGasToStaker(uint256 amount) external payable {
+        require(amount == msg.value, "msg.value error");
+        address(etherBox).call{value: msg.value}("");
+        _distributeGasToStaker(msg.value);
+    }
+
     function _distributeGasToStaker(uint256 amount) internal {
         gasClaimedPerToken = gasClaimedPerToken + amount * 1e18 / totalUnstake;
     }

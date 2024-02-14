@@ -13,8 +13,8 @@ contract FluidScript is Script {
 
     function stakeAndGetStGAS() public {
         vm.startBroadcast();
-        StGAS stGAS = StGAS(0x5996E5eDa8e77E0EE4394e7DB3D3F8509C66d978);
-        Fluid fluid = Fluid(0xc573EA70d9f515Fc18a45e8799De23dC576227b5);
+        StGAS stGAS = StGAS(0xb8C6d50319aBEb3a7F575440B25eE39981a69A7e);
+        Fluid fluid = Fluid(0x759Fc28826f4b0E9753eE821891a5FA1Bb98F05D);
 
 //        fluid.mint();
 //        fluid.stake(500e18);

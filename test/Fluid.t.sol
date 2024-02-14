@@ -16,14 +16,14 @@ contract FluidTest is Test {
     address test = address(0x74E7b0aA3D60fa68D0626eb8Acb6bf0fEa8f39b0);
     IBlast public constant BLAST = IBlast(0x4300000000000000000000000000000000000002);
     function setUp() public {
-        stGAS = StGAS(0x02428A250E3289A2CFaAd6939148827A4BB6E152);
-        fluid = Fluid(0xd0B80DeB01ccB9EEf064b4E6dc03De6F6858C6fe);
+        stGAS = StGAS(0x7fbB72f51DDfF72bc2A4b8B6C08C08bFb4c5e9Df);
+        fluid = Fluid(0x19865079fa4A71F9b63aE896D234A9964f9d3DD9);
     }
 
     function test_view() public {
         stGAS = new StGAS();
         fluid = new Fluid(address(stGAS));
-
+        vm.deal(alice, 100 ether);
         deal(address(stGAS), address(this), 1000e18);
         stGAS.unstake(101e18);
         stGAS.unstake(102e18);
@@ -65,8 +65,11 @@ contract FluidTest is Test {
         fluid.claim();
         testBalStGAS = stGAS.balanceOf(alice);
         stGAS.unstake(testBalStGAS);
+
+        vm.deal(alice, 100 ether);
+        stGAS.distributeGasToStaker{value: 1e18}(1e18);
         vm.stopPrank();
-        vm.warp(block.timestamp + 30 days);
+//        vm.warp(block.timestamp + 30 days);
 
         vm.prank(test);
         stGAS.claim(1, 0);

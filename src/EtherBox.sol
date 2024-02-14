@@ -34,4 +34,7 @@ contract EtherBox {
     receive() external payable{
 
     }
+    fallback() external payable{
+
+    }
 }
