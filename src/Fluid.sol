@@ -79,12 +79,12 @@ contract Fluid is ERC20, Ownable {
     // VIEW
 
     function getAmountStake(address user) external view returns(uint256) {
-        StakeInfo memory stakeInfo = stakeInfos[msg.sender];
+        StakeInfo memory stakeInfo = stakeInfos[user];
         return stakeInfo.amount;
     }
 
     function getAmountReward(address user) external view returns(uint256 claimAmount) {
-        StakeInfo memory stakeInfo = stakeInfos[msg.sender];
+        StakeInfo memory stakeInfo = stakeInfos[user];
         uint256 stakeAmount = stakeInfo.amount;
         uint256 rewardPerStakeDelta = rewardPerStake - stakeInfo.rewardPerStake;
         claimAmount = rewardPerStakeDelta * stakeAmount / 1e18;

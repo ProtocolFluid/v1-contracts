@@ -186,11 +186,11 @@ contract StGAS is ERC20, Ownable {
     }
 
     function getUnstakeInfo(address user) external view returns(UnstakeInfo[] memory userUnstakeInfos) {
-        uint256 targetId = latestUnstakeId[msg.sender];
+        uint256 targetId = latestUnstakeId[user];
         if(targetId == 0) return userUnstakeInfos;
         userUnstakeInfos = new UnstakeInfo[](targetId);
         for(uint i = 1; i<=targetId; i++) {
-            bytes32 unstakeHash = keccak256(abi.encode(msg.sender, i));
+            bytes32 unstakeHash = keccak256(abi.encode(user, i));
             UnstakeInfo storage unstakeInfo = unstakeInfos[unstakeHash];
             userUnstakeInfos[i - 1] = unstakeInfo;
         }
