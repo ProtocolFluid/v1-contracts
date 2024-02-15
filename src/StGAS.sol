@@ -124,7 +124,12 @@ contract StGAS is ERC20, Ownable {
     }
 
     function _distributeGasToStaker(uint256 amount) internal {
-        gasClaimedPerToken = gasClaimedPerToken + amount * 1e18 / totalUnstake;
+        if(totalUnstake > 0){
+            gasClaimedPerToken = gasClaimedPerToken + amount * 1e18 / totalUnstake;
+        } else {
+            // TODO: add logic
+        }
+        
     }
 
     // TODO: make it ENUM
@@ -154,6 +159,8 @@ contract StGAS is ERC20, Ownable {
 
         uint256 claimedGas = (gasClaimedPerToken - unstakeInfo.gasClaimedPerToken) * unstakeInfo.amount / 1e18;
         require(claimedGas >= unstakeInfo.amount, "Insufficient gas");
+
+        totalUnstake -= unstakeInfo.amount;
 
         if(claimedGas > unstakeInfo.amount) {
             _distributeGasToStaker(claimedGas - unstakeInfo.amount);
