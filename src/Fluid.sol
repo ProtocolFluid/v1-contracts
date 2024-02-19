@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.0;
 
-import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {Ownable} from "openzeppelin-contracts/contracts/access/Ownable.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {StGAS} from "./StGas.sol";
-contract Fluid is ERC20, Ownable {
+import {BlastApp, YieldMode, GasMode} from "./base/BlastApp.sol";
+
+contract Fluid is Initializable, OwnableUpgradeable, ERC20Upgradeable, BlastApp {
 
     struct StakeInfo {
         uint256 amount;
@@ -21,10 +24,22 @@ contract Fluid is ERC20, Ownable {
     uint256 public rewardPerStake;
 
     StGAS public stGAS;
-    constructor(address _stGAS) ERC20("Fluid", "Fluid") Ownable(msg.sender) {
-        stGAS = StGAS(_stGAS);
+
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
     }
 
+    function initialize(address _stGAS, address _owner) public initializer {
+        stGAS = StGAS(_stGAS);
+        __ERC20_init("Fluid", "FLD");
+        __Ownable_init(_owner);
+    }
+
+    // Because of foundry bug, this have to execute separately
+    function initializeBlast() external onlyOwner {
+        __BlastApp_init(YieldMode.CLAIMABLE, GasMode.CLAIMABLE, msg.sender);
+    }
 
     function setStGAS(address _stGAS) external onlyOwner {
         stGAS = StGAS(_stGAS);

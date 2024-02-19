@@ -4,7 +4,6 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IBlast, GasMode} from "src/interfaces/IBlast.sol";
-import {Ownable} from "openzeppelin-contracts/contracts/access/Ownable.sol";
 import {EtherBox} from "./EtherBox.sol";
 import {Fluid} from "./Fluid.sol";
 
