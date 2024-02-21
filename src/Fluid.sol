@@ -4,9 +4,10 @@ pragma solidity ^0.8.0;
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import {StGAS} from "./StGas.sol";
+import {StGAS} from "src/StGAS.sol";
 import {BlastApp, YieldMode, GasMode} from "./base/BlastApp.sol";
 
+/// @custom:oz-upgrades-from Fluid
 contract Fluid is Initializable, OwnableUpgradeable, ERC20Upgradeable, BlastApp {
 
     struct StakeInfo {

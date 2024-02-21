@@ -1,13 +1,18 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
-import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {BlastApp, YieldMode, GasMode} from "./base/BlastApp.sol";
+
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IBlast, GasMode} from "src/interfaces/IBlast.sol";
 import {EtherBox} from "./EtherBox.sol";
 import {Fluid} from "./Fluid.sol";
 
-contract StGAS is ERC20, Ownable {
+/// @custom:oz-upgrades-from StGAS
+contract StGAS is Initializable, OwnableUpgradeable, ERC20Upgradeable, BlastApp {
     using EnumerableSet for EnumerableSet.AddressSet;
 
     struct UnstakeInfo {
@@ -34,21 +39,29 @@ contract StGAS is ERC20, Ownable {
     EtherBox public etherBox;
     Fluid public fluid;
 
-    IBlast public constant BLAST = IBlast(0x4300000000000000000000000000000000000002);
-
     uint256 public unbondingPeriod;
 
-    uint256[256] public temp;
+    uint256 public temp;
 
     modifier checkIsWhitelisted() {
         require(whitelistedContract.contains(msg.sender), "Not Whitelisted");
         _;
     }
 
-    constructor() ERC20("stGAS", "stGAS") Ownable(msg.sender) {
-        BLAST.configureClaimableGas();
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
 
+    function initialize(address owner) public initializer {
         etherBox = new EtherBox();
+        __ERC20_init("stGAS", "stGAS");
+        __Ownable_init(owner);
+    }
+
+    // Because of foundry bug, this have to execute separately
+    function initializeBlast() external onlyOwner {
+        __BlastApp_init(YieldMode.CLAIMABLE, GasMode.CLAIMABLE, msg.sender);
     }
 
     function setFluid(address _fluid) external onlyOwner {
@@ -101,7 +114,7 @@ contract StGAS is ERC20, Ownable {
 
     function makeGas(uint256 loop) external {
         for(uint256 i =0;i<loop;i++) {
-            temp[i] = loop;
+            temp += 1;
         }
     }
 
