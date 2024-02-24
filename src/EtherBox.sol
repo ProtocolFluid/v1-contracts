@@ -1,34 +1,35 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.0;
 
-import {IBlast, YieldMode} from "src/interfaces/IBlast.sol";
-contract EtherBox {
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {ERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {BlastApp, YieldMode, GasMode} from "./base/BlastApp.sol";
 
-    IBlast public constant BLAST = IBlast(0x4300000000000000000000000000000000000002);
+contract EtherBox is Initializable, OwnableUpgradeable, BlastApp {
+
     address public stGAS;
 
-    constructor(){
-        stGAS = msg.sender;
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
     }
 
-    function setting() external {
-        BLAST.configureClaimableYield();
-        BLAST.configureClaimableGas();
+    // Because of foundry bug, this have to execute separately
+    function initializeBlast() external onlyOwner {
+        __BlastApp_init(YieldMode.CLAIMABLE, GasMode.CLAIMABLE, msg.sender);
     }
+
+    function setStGAS(address _stGAS) external onlyOwner {
+        stGAS = _stGAS;
+    }
+
     // TODO: send with WETH and add reentrancy guard
     function withdraw(address recipient, uint256 amount) external {
         require(msg.sender == stGAS, "only stGAS");
         require(amount <= address(this).balance, "Insufficient balance");
         (bool status, ) = recipient.call{value: amount}("");
         require(status, "not transferable");
-    }
-
-    // TODO: add access control
-    function claimAllYield(address recipient) external {
-        BLAST.claimAllYield(address(this), recipient);
-    }
-    function claimContractsGas() external {
-        BLAST.claimMaxGas(address(this), msg.sender);
     }
 
     receive() external payable{

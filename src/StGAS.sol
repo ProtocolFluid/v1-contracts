@@ -53,15 +53,19 @@ contract StGAS is Initializable, OwnableUpgradeable, ERC20Upgradeable, BlastApp 
         _disableInitializers();
     }
 
-    function initialize(address owner) public initializer {
-        etherBox = new EtherBox();
+    function initialize(address _etherBox, address owner) public initializer {
         __ERC20_init("stGAS", "stGAS");
         __Ownable_init(owner);
+        etherBox = _etherBox;
     }
 
     // Because of foundry bug, this have to execute separately
     function initializeBlast() external onlyOwner {
         __BlastApp_init(YieldMode.CLAIMABLE, GasMode.CLAIMABLE, msg.sender);
+    }
+
+    function setEtherBox(address _etherBox) external onlyOwner {
+        etherBox = _etherBox;
     }
 
     function setFluid(address _fluid) external onlyOwner {
@@ -159,9 +163,11 @@ contract StGAS is Initializable, OwnableUpgradeable, ERC20Upgradeable, BlastApp 
             claimContractCount = whitelistedContract.length();
         }
 
+        unstakeInfo.isClaimed = true;
+
         for(uint256 i =0;i<claimContractCount;i++) {
             address target = whitelistedContract.at(i);
-            // TODO: consider call claimMaxGas with try catch. claimMaxGas revert when call twice in one block.
+            // NOTICE: claimMaxGas revert when call twice in one block.
             try BLAST.claimMaxGas(target, address(etherBox)) returns(uint256 claimed) {
                 deltaEtherBalances[target] -= int256(claimed);
                 _distributeGasToStaker(claimed);
@@ -179,7 +185,6 @@ contract StGAS is Initializable, OwnableUpgradeable, ERC20Upgradeable, BlastApp 
         }
 
         etherBox.withdraw(msg.sender, unstakeInfo.amount);
-        unstakeInfo.isClaimed = true;
         return 0;
     }
 
