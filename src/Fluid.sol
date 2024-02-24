@@ -9,9 +9,9 @@ import {BlastApp, YieldMode, GasMode} from "./base/BlastApp.sol";
 
 /// @custom:oz-upgrades-from Fluid
 contract Fluid is Initializable, OwnableUpgradeable, ERC20Upgradeable, BlastApp {
-
     struct StakeInfo {
         uint256 amount;
+        uint256 stakedTime;
         uint256 rewardPerStake;
     }
 
@@ -25,6 +25,7 @@ contract Fluid is Initializable, OwnableUpgradeable, ERC20Upgradeable, BlastApp 
     uint256 public rewardPerStake;
 
     StGAS public stGAS;
+
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -73,7 +74,9 @@ contract Fluid is Initializable, OwnableUpgradeable, ERC20Upgradeable, BlastApp 
 
         StakeInfo storage stakeInfo = stakeInfos[msg.sender];
         stakeInfo.amount += amount;
+        stakeInfo.stakedTime = block.timestamp;
         stakeInfo.rewardPerStake = rewardPerStake;
+
         totalStake += amount;
 
         _transfer(msg.sender, address(this), amount);
@@ -83,6 +86,7 @@ contract Fluid is Initializable, OwnableUpgradeable, ERC20Upgradeable, BlastApp 
     function unstake(uint256 amount) external {
         claim();
         StakeInfo storage stakeInfo = stakeInfos[msg.sender];
+        require(block.timestamp - stakeInfo.stakedTime > 12, "wait for unstake");
         require(amount <= stakeInfo.amount, "no");
         stakeInfo.amount -= amount;
         totalStake -= amount;
