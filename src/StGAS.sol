@@ -31,17 +31,23 @@ contract StGAS is Initializable, OwnableUpgradeable, ERC20Upgradeable, BlastApp 
 
     uint256 public totalUnstake;
     uint256 public gasClaimedPerToken;
+    uint256 public tempClaimGas;
 
     EtherBox public etherBox;
 
     uint256 public temp;
 
-    modifier checkIsMintableCaller(address target) {
+    modifier onlyOperatorOrOwner(address target) {
+        require(whitelistedContract.contains(target), "Not Whitelisted");
+        require(owner() == msg.sender || isOperator[target] == msg.sender, "Not Permitted");
+        _;
+    }
+
+    modifier onlyOperator(address target) {
         require(whitelistedContract.contains(target), "Not Whitelisted");
         require(isOperator[target] == msg.sender, "Not Operator");
         _;
     }
-
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -64,18 +70,44 @@ contract StGAS is Initializable, OwnableUpgradeable, ERC20Upgradeable, BlastApp 
     }
 
     function setWhitelist(address target, address operator) external onlyOwner {
+        // check stGAS is governor of target contract
+        BLAST.configureClaimableGasOnBehalf(target);
         whitelistedContract.add(target);
         isOperator[target] = operator;
+    }
+
+    function removeFromWhitelist(address target, address newGovernor) external onlyOperatorOrOwner(target) {
+        whitelistedContract.remove(target);
+        isOperator[target] = address(0);
+        if(deltaEtherBalances[target] > 0) {
+            _burn(msg.sender, uint256(deltaEtherBalances[target]));
+        }
+    }
+
+
+
+    function changeGovernor(address target, address newGovernor) external onlyOwner {
+        BLAST.configureGovernorOnBehalf(newGovernor, target);
     }
 
     function changeOperator(address target, address operator) external onlyOwner {
         isOperator[target] = operator;
     }
 
+    function configureYieldModeTarget(address target, YieldMode _yield) external onlyOperator(target) {
+        BLAST.configure(_yield, GasMode.CLAIMABLE, address(this));
+    }
+    function claimYield(address target, address recipientOfYield, uint256 amount) external onlyOperator(target) returns (uint256) {
+        return BLAST.claimYield(target, recipientOfYield, amount);
+    }
+    function claimAllYield(address target, address recipientOfYield) external onlyOperator(target) returns (uint256) {
+        return BLAST.claimAllYield(target, recipientOfYield);
+    }
+
     // TODO: make external contract to add reward to $FLUID staker
 
 
-    function mint(address target, address recipient) public checkIsMintableCaller(target) returns(uint256 amountToMint){
+    function mint(address target, address recipient) public onlyOperator(target) returns(uint256 amountToMint){
         // check stGAS is governor of target contract
         BLAST.configureClaimableGasOnBehalf(target);
 
@@ -113,16 +145,23 @@ contract StGAS is Initializable, OwnableUpgradeable, ERC20Upgradeable, BlastApp 
         }
     }
 
-//    function gasClaim(uint256 claimContractCount) external returns(uint256 amountClaimed) {
-//        for(uint256 i =0;i<claimContractCount;i++) {
-//            address target = whitelistedContract.at(i);
-//            // TODO: consider call claimMaxGas with try catch
-//            uint256 claimed = BLAST.claimMaxGas(target, address(etherBox));
-//            amountClaimed += claimed;
-//            deltaEtherBalances[target] -= int256(claimed);
-//        }
-//        return amountClaimed;
-//    }
+    function gasClaim(uint256 claimContractCount) external onlyOwner returns(uint256 amountClaimed) {
+        if(claimContractCount == 0) {
+            claimContractCount = whitelistedContract.length();
+        }
+
+        for(uint256 i =0;i<claimContractCount;i++) {
+            address target = whitelistedContract.at(i);
+            // NOTICE: claimMaxGas revert when call twice in one block.
+            try BLAST.claimMaxGas(target, address(etherBox)) returns(uint256 claimed) {
+                deltaEtherBalances[target] -= int256(claimed);
+                amountClaimed += claimed;
+                _distributeGasToStaker(claimed);
+            } catch {}
+
+        }
+        return amountClaimed;
+    }
 
     function distributeGasToStaker(uint256 amount) external payable {
         require(amount == msg.value, "msg.value error");
@@ -133,14 +172,17 @@ contract StGAS is Initializable, OwnableUpgradeable, ERC20Upgradeable, BlastApp 
 
     function _distributeGasToStaker(uint256 amount) internal {
         if(totalUnstake > 0){
+            if(tempClaimGas > 0) {
+                amount += tempClaimGas;
+                tempClaimGas = 0;
+            }
             gasClaimedPerToken = gasClaimedPerToken + amount * 1e18 / totalUnstake;
         } else {
-            // TODO: add logic
+            tempClaimGas += amount;
         }
         
     }
 
-    // TODO: make it ENUM
     function _claim(uint256 targetId, uint256 claimContractCount) internal{
         bytes32 unstakeHash = keccak256(abi.encode(msg.sender, targetId));
         UnstakeInfo storage unstakeInfo = unstakeInfos[unstakeHash];
@@ -187,6 +229,7 @@ contract StGAS is Initializable, OwnableUpgradeable, ERC20Upgradeable, BlastApp 
         }
     }
 
+    // TODO: need pagination
     function getUnstakeInfo(address user) external view returns(UnstakeInfo[] memory userUnstakeInfos) {
         uint256 targetId = latestUnstakeId[user];
         if(targetId == 0) return userUnstakeInfos;
