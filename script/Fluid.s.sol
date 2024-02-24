@@ -4,6 +4,7 @@ pragma solidity ^0.8.13;
 import {Script, console2} from "forge-std/Script.sol";
 import {Fluid} from "src/Fluid.sol";
 import {StGAS} from "src/StGAS.sol";
+import {EtherBox} from "src/EtherBox.sol";
 import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 
 // stGAS: 0xEC7C2FC9216037a4b40Bb24089Adc4D252E80792, 0x9E182F96EaA5D53CaFA7A1d9ADD79eb5f2a8d6a3, 0xCC162B9e6D9c49bBf64A97514D3Ecea55f5Ce593
@@ -24,16 +25,24 @@ contract FluidScript is Script {
     }
     function run() public {
         vm.startBroadcast();
+
+        address etherBoxProxy = Upgrades.deployTransparentProxy(
+            "EtherBox.sol",
+            initialOwner,
+            ""
+        );
         address stGASProxy = Upgrades.deployTransparentProxy(
             "StGAS.sol",
             initialOwner,
-            abi.encodeCall(StGAS.initialize, (initialOwner))
+            abi.encodeCall(StGAS.initialize, (etherBoxProxy, initialOwner))
         );
          address fluidProxy = Upgrades.deployTransparentProxy(
              "Fluid.sol",
              initialOwner,
              abi.encodeCall(Fluid.initialize, (stGASProxy, initialOwner))
          );
+
+        console2.log("DEPLOYED etherbox:", etherBoxProxy);
         console2.log("DEPLOYED stGAS:", stGASProxy);
         console2.log("DEPLOYED fluid:", fluidProxy);
 
