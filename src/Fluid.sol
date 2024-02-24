@@ -50,6 +50,7 @@ contract Fluid is Initializable, OwnableUpgradeable, ERC20Upgradeable, BlastApp 
         _mint(msg.sender, 10000e18);
     }
 
+    // TODO: make only reward contract
     function addReward(uint256 amount) external {
         stGAS.transferFrom(msg.sender, address(this), amount);
         rewardPerStake += (amount * 1e18 / totalStake);

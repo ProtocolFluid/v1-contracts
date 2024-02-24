@@ -9,7 +9,6 @@ import {BlastApp, YieldMode, GasMode} from "./base/BlastApp.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {IBlast, GasMode} from "src/interfaces/IBlast.sol";
 import {EtherBox} from "./EtherBox.sol";
-import {Fluid} from "./Fluid.sol";
 
 /// @custom:oz-upgrades-from StGAS
 contract StGAS is Initializable, OwnableUpgradeable, ERC20Upgradeable, BlastApp {
@@ -18,35 +17,31 @@ contract StGAS is Initializable, OwnableUpgradeable, ERC20Upgradeable, BlastApp 
     struct UnstakeInfo {
         uint256 index;
         address user;
-        uint256 unstakeTime;
         uint256 amount;
         uint256 gasClaimedPerToken;
         bool isClaimed;
     }
-//    mapping(address target => bool isWhitelisted) public isWhitelistedContract;
     mapping(address target => int256 deltaEtherBalance) public deltaEtherBalances;
 
-//    mapping(address unstaker => uint256[] unstakeId) public unstakeIds;
     mapping(address unstaker => uint256 latestUnstakeId) public latestUnstakeId;
-    mapping(address unstaker => uint256 latestClaimedId) public latestClaimedId;
     mapping(bytes32 unstakeHash => UnstakeInfo unstakeInfo) public unstakeInfos;
 
     EnumerableSet.AddressSet whitelistedContract;
+    mapping(address target => address operator) public isOperator;
 
     uint256 public totalUnstake;
     uint256 public gasClaimedPerToken;
 
     EtherBox public etherBox;
-    Fluid public fluid;
-
-    uint256 public unbondingPeriod;
 
     uint256 public temp;
 
-    modifier checkIsWhitelisted() {
-        require(whitelistedContract.contains(msg.sender), "Not Whitelisted");
+    modifier checkIsMintableCaller(address target) {
+        require(whitelistedContract.contains(target), "Not Whitelisted");
+        require(isOperator[target] == msg.sender, "Not Operator");
         _;
     }
+
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -56,7 +51,7 @@ contract StGAS is Initializable, OwnableUpgradeable, ERC20Upgradeable, BlastApp 
     function initialize(address _etherBox, address owner) public initializer {
         __ERC20_init("stGAS", "stGAS");
         __Ownable_init(owner);
-        etherBox = _etherBox;
+        etherBox = EtherBox(payable(_etherBox));
     }
 
     // Because of foundry bug, this have to execute separately
@@ -65,38 +60,36 @@ contract StGAS is Initializable, OwnableUpgradeable, ERC20Upgradeable, BlastApp 
     }
 
     function setEtherBox(address _etherBox) external onlyOwner {
-        etherBox = _etherBox;
+        etherBox = EtherBox(payable(_etherBox));
     }
 
-    function setFluid(address _fluid) external onlyOwner {
-        fluid = Fluid(_fluid);
-    }
-
-    function setWhitelist(address target) external onlyOwner {
+    function setWhitelist(address target, address operator) external onlyOwner {
         whitelistedContract.add(target);
+        isOperator[target] = operator;
     }
 
-    function addRewardToFluid() external {
-        uint256 amountToMint = this.mint(address(this));
-        this.approve(address(fluid), amountToMint);
-        fluid.addReward(amountToMint);
+    function changeOperator(address target, address operator) external onlyOwner {
+        isOperator[target] = operator;
     }
 
-    function mint(address recipient) public checkIsWhitelisted returns(uint256 amountToMint){
-        // check stGAS is governor
-        BLAST.configureClaimableGasOnBehalf(msg.sender);
-        (uint256 etherSeconds, uint256 etherBalance, uint256 lastUpdated, GasMode mode) = BLAST.readGasParams(msg.sender);
+    // TODO: make external contract to add reward to $FLUID staker
 
-        require(deltaEtherBalances[msg.sender] < int256(etherBalance), "deltaEtherBalance error");
-        amountToMint = uint256(int256(etherBalance) - deltaEtherBalances[msg.sender]);
-        deltaEtherBalances[msg.sender] += int256(amountToMint);
+
+    function mint(address target, address recipient) public checkIsMintableCaller(target) returns(uint256 amountToMint){
+        // check stGAS is governor of target contract
+        BLAST.configureClaimableGasOnBehalf(target);
+
+        (,uint256 etherBalance,,) = BLAST.readGasParams(target);
+
+        require(deltaEtherBalances[target] < int256(etherBalance), "deltaEtherBalance error");
+        amountToMint = uint256(int256(etherBalance) - deltaEtherBalances[target]);
+        deltaEtherBalances[target] += int256(amountToMint);
         _mint(recipient, amountToMint);
     }
 
     function unstake(uint256 amountToBurn) external {
         require(balanceOf(msg.sender) >= amountToBurn, "Insufficient Balance");
 
-//        uint256[] memory unstakeId = unstakeIds[msg.sender];
         uint256 nextId = latestUnstakeId[msg.sender] + 1;
         latestUnstakeId[msg.sender] = nextId;
         bytes32 unstakeHash = keccak256(abi.encode(msg.sender, nextId));
@@ -104,7 +97,6 @@ contract StGAS is Initializable, OwnableUpgradeable, ERC20Upgradeable, BlastApp 
         UnstakeInfo memory unstakeInfo = UnstakeInfo({
             index: nextId,
             user: msg.sender,
-            unstakeTime: block.timestamp,
             amount: amountToBurn,
             gasClaimedPerToken: gasClaimedPerToken,
             isClaimed : false
@@ -112,7 +104,6 @@ contract StGAS is Initializable, OwnableUpgradeable, ERC20Upgradeable, BlastApp 
         totalUnstake += amountToBurn;
         unstakeInfos[unstakeHash] = unstakeInfo;
 
-//        unstakeIds.push(nextId);
         _burn(msg.sender, amountToBurn);
     }
 
@@ -135,7 +126,8 @@ contract StGAS is Initializable, OwnableUpgradeable, ERC20Upgradeable, BlastApp 
 
     function distributeGasToStaker(uint256 amount) external payable {
         require(amount == msg.value, "msg.value error");
-        address(etherBox).call{value: msg.value}("");
+        (bool success, ) = address(etherBox).call{value: msg.value}("");
+        require(success, "transfer eth to EtherBox failed");
         _distributeGasToStaker(msg.value);
     }
 
@@ -149,14 +141,11 @@ contract StGAS is Initializable, OwnableUpgradeable, ERC20Upgradeable, BlastApp 
     }
 
     // TODO: make it ENUM
-    function _claim(uint256 targetId, uint256 claimContractCount) internal returns(uint256) {
+    function _claim(uint256 targetId, uint256 claimContractCount) internal{
         bytes32 unstakeHash = keccak256(abi.encode(msg.sender, targetId));
         UnstakeInfo storage unstakeInfo = unstakeInfos[unstakeHash];
-        if(unstakeInfo.unstakeTime == 0) {
-            return 1;
-        }
         if(unstakeInfo.isClaimed) {
-            return 2;
+            return;
         }
 
         if(claimContractCount == 0) {
@@ -185,34 +174,17 @@ contract StGAS is Initializable, OwnableUpgradeable, ERC20Upgradeable, BlastApp 
         }
 
         etherBox.withdraw(msg.sender, unstakeInfo.amount);
-        return 0;
+        return;
     }
 
-    function claim(uint256 index, uint256 claimContractCount) external returns(uint256){
-        uint256 error = _claim(index, claimContractCount);
-        return error;
+    function claim(uint256 index, uint256 claimContractCount) external {
+        _claim(index, claimContractCount);
     }
 
-    function claimSingle(uint256 claimContractCount) external {
-        uint256 targetId = latestClaimedId[msg.sender] + 1;
-        latestClaimedId[msg.sender] = targetId;
-//        latestUnstakeId[msg.sender] = targetId + 1;
-        uint256 error = _claim(targetId, claimContractCount);
-        require(error != 1, "no more to claim");
-    }
-
-    // TODO: need refactoring, latestUnstakeId, latestClaimedId
-    function claimAll(uint256 claimContractCount) external {
-        uint256 targetId = latestUnstakeId[msg.sender];
-        uint256 error;
-        while(error != 1) {
-            targetId += 1;
-            if(latestUnstakeId[msg.sender] < targetId) {
-                break;
-            }
-            error = _claim(targetId, claimContractCount);
+    function claimMultiple(uint256[] calldata indices, uint256 claimContractCount) external{
+        for(uint i =0;i<indices.length;i++) {
+            _claim(indices[i], claimContractCount);
         }
-        latestUnstakeId[msg.sender] = targetId - 1;
     }
 
     function getUnstakeInfo(address user) external view returns(UnstakeInfo[] memory userUnstakeInfos) {
