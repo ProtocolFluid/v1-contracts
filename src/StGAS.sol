@@ -183,8 +183,8 @@ contract StGAS is Initializable, OwnableUpgradeable, ERC20Upgradeable, BlastApp 
         
     }
 
-    function _claim(uint256 targetId, uint256 claimContractCount) internal{
-        bytes32 unstakeHash = keccak256(abi.encode(msg.sender, targetId));
+    function _claim(address recipient, uint256 targetId, uint256 claimContractCount) internal{
+        bytes32 unstakeHash = keccak256(abi.encode(recipient, targetId));
         UnstakeInfo storage unstakeInfo = unstakeInfos[unstakeHash];
         if(unstakeInfo.isClaimed) {
             return;
@@ -215,17 +215,23 @@ contract StGAS is Initializable, OwnableUpgradeable, ERC20Upgradeable, BlastApp 
             _distributeGasToStaker(claimedGas - unstakeInfo.amount);
         }
 
-        etherBox.withdraw(msg.sender, unstakeInfo.amount);
+        etherBox.withdraw(recipient, unstakeInfo.amount);
         return;
     }
 
+    function forceClaim(address user, uint256[] calldata indices, uint256 claimContractCount) external onlyOwner {
+        for(uint i =0;i<indices.length;i++) {
+            _claim(user, indices[i], claimContractCount);
+        }
+    }
+
     function claim(uint256 index, uint256 claimContractCount) external {
-        _claim(index, claimContractCount);
+        _claim(msg.sender, index, claimContractCount);
     }
 
     function claimMultiple(uint256[] calldata indices, uint256 claimContractCount) external{
         for(uint i =0;i<indices.length;i++) {
-            _claim(indices[i], claimContractCount);
+            _claim(msg.sender, indices[i], claimContractCount);
         }
     }
 
