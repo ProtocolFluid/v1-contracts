@@ -245,5 +245,16 @@ contract StGAS is Initializable, OwnableUpgradeable, ERC20Upgradeable, BlastApp 
             UnstakeInfo storage unstakeInfo = unstakeInfos[unstakeHash];
             userUnstakeInfos[i - 1] = unstakeInfo;
         }
-    } 
+    }
+    function getUnstakeInfo(address user, uint256 start, uint256 end) external view returns(UnstakeInfo[] memory userUnstakeInfos) {
+        uint256 targetId = latestUnstakeId[user];
+        if(targetId == 0) return userUnstakeInfos;
+
+        userUnstakeInfos = new UnstakeInfo[](end - start + 1);
+        for(uint i = start; i<=end; i++) {
+            bytes32 unstakeHash = keccak256(abi.encode(user, i));
+            UnstakeInfo storage unstakeInfo = unstakeInfos[unstakeHash];
+            userUnstakeInfos[i - start] = unstakeInfo;
+        }
+    }
 }
